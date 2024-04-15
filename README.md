@@ -22,12 +22,14 @@ k6 run script.js
 - [Tips about running large k6 tests in a single machine](https://grafana.com/docs/k6/latest/testing-guides/running-large-tests/).
   - If the single machine is not enough, try [distributed tests](https://grafana.com/docs/k6/latest/testing-guides/running-distributed-tests/).
 - Checkout the default [AppSync quotas](https://docs.aws.amazon.com/general/latest/gr/appsync.html). Especially:
-  - Rate of connections per API (default: 200 per second, resource level adjustable).
+  - Rate of connections per API (default: 2,000 per second, resource level adjustable).
   - Rate of inbound messages per API (default: 10,000 per second, resource level adjustable).
   - Rate of outbound messages per API (default: 1,000,000 per second, resource level adjustable).
   - Subscription payload size (default: 240 kilobytes, not adjustable).
 
 ## Example
+
+### Single Instance
 
 Setup the environment variables:
 
@@ -105,3 +107,47 @@ running (0m38.0s), 00000/11000 VUs, 2500 complete and 10000 interrupted iteratio
 appsync-listener  ✓ [======================================] 10000/10000 VUs  35s
 appsync-broadcast ✓ [======================================] 0000/1000 VUs    25s  100.00 iters/s
 ```
+
+### Manually Multi Instance
+
+Without k6 distributed testing, you can also run the script on multiple machines manually.
+
+#### Subscriber
+
+```bash
+export HTTP_API_HOST=xxxxxxxxxxxxxxx.appsync-api.us-east-1.amazonaws.com
+export REALTIME_API_HOST=xxxxxxxxxxxxxxx.appsync-realtime-api.us-east-1.amazonaws.com
+export API_KEY=da2-xxxxxxxxxxxxxx
+
+export CHANNEL_COUNT=1
+export SUBSCRIBER_DURATION=3m
+export SUBSCRIBER_COUNT=10000
+export SUBSCRIBE_ONLY=true
+export PUBLISHER_COUNT=1
+export PUBLISHER_RPS=1
+```
+
+#### Publisher
+
+```bash
+export HTTP_API_HOST=xxxxxxxxxxxxxxx.appsync-api.us-east-1.amazonaws.com
+export REALTIME_API_HOST=xxxxxxxxxxxxxxx.appsync-realtime-api.us-east-1.amazonaws.com
+export API_KEY=da2-xxxxxxxxxxxxxx
+
+export CHANNEL_COUNT=1
+export PUBLISHER_DURATION=1m
+export PUBLISHER_COUNT=10000
+export PUBLISHER_RPS=10
+export PUBLISH_ONLY=true
+export SUBSCRIBER_COUNT=1
+export SUBSCRIBER_DURATION=1s
+```
+
+#### Test
+
+1. Start all subscribers.
+2. Start the publisher.
+3. When publisher finishes, stop all subscribers.
+4. Compare the `http_reqs` on the publisher and `appsync_channel_0_response_rate` on the subscribers.
+
+E.g. the `http_reqs` is `600`, and every subscriber has `appsync_channel_0_response_rate` of `100.00% ✓ 6000000 ✗ 0`, then the test is successful.
