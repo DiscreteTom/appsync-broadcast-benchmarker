@@ -28,7 +28,7 @@ export const options = {
       exec: "listener",
       startVUs: 0,
       stages: [
-        { duration: "5s", target: 1 },
+        { duration: "1s", target: 1 },
         { duration: "5s", target: 1 },
         { duration: "1s", target: 0 },
       ],
@@ -40,7 +40,7 @@ export const options = {
       exec: "broadcast",
       vus: 1,
       iterations: 1,
-      startTime: "10s",
+      startTime: "2s",
       maxDuration: "30s",
     },
   },
@@ -67,7 +67,7 @@ export function listener() {
     socket.on("message", (msg) => {
       const e = JSON.parse(msg);
       if (e.type === "connection_ack") {
-        socket.current.send(
+        socket.send(
           JSON.stringify({
             type: "start",
             id: `${Date.now()}`,
@@ -119,4 +119,10 @@ export function broadcast() {
     }
   );
   //  console.log('broadcast resp: ' + res.body);
+}
+
+function on_error(e) {
+  if (e.error() != "websocket: close sent") {
+    console.log("An unexpected error occured: ", e.error());
+  }
 }
