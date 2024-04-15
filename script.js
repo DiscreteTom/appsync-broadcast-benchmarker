@@ -2,20 +2,20 @@ import http from "k6/http";
 import { check } from "k6";
 import encoding from "k6/encoding";
 import ws from "k6/ws";
-import { Trend } from "k6/metrics";
+import { Trend, Rate } from "k6/metrics";
 
 // environment variables
 const HTTP_API_HOST = assertNonEmptyString(__ENV.HTTP_API_HOST); // e.g. xxxxxxxxxx.appsync-api.us-east-1.amazonaws.com
 const REALTIME_API_HOST = assertNonEmptyString(__ENV.REALTIME_API_HOST); // e.g. xxxxxxxxxx.appsync-realtime-api.us-east-1.amazonaws.com
 const API_KEY = assertNonEmptyString(__ENV.API_KEY); // e.g. da2-xxx
-const CHANNEL_COUNT = Number(__ENV.CHANNEL_COUNT || 1);
+const CHANNEL_COUNT = Number(__ENV.CHANNEL_COUNT || 10);
 const CHANNEL_PREFIX = __ENV.CHANNEL_PREFIX || "channel-";
 const SUBSCRIBER_COUNT = Number(__ENV.SUBSCRIBER_COUNT || 100);
 const SUBSCRIBER_RAMP_UP_TIME = __ENV.SUBSCRIBER_RAMP_UP_TIME || "5s";
 const SUBSCRIBER_DURATION = __ENV.SUBSCRIBER_DURATION || "30s";
 const PUBLISHER_COUNT = Number(__ENV.PUBLISHER_COUNT || 100);
 const PUBLISHER_RPS = Number(__ENV.PUBLISHER_RPS || 10);
-const PUBLISHER_DURATION = __ENV.PUBLISHER_DURATION || "20s"; // should be smaller than SUBSCRIBER_DURATION
+const PUBLISHER_DURATION = __ENV.PUBLISHER_DURATION || "25s"; // should be smaller than SUBSCRIBER_DURATION
 
 // construct endpoints
 const authorization = {
@@ -33,17 +33,27 @@ const channels = new Array(CHANNEL_COUNT).fill(0).map((_, i) => ({
   listenerCount: 0,
   expectCount: 0,
   responseCount: 0,
+  rate: new Rate(`appsync_channel_${i}_response_rate`),
 }));
 const appsyncBroadcastRttMs = new Trend("appsync_broadcast_rtt_ms", true);
 
 export function teardown() {
   // compare the number of expected responses to the actual number of responses
-  channels.forEach((channel) => {
+  channels.forEach((channel, i) => {
     const expected = channel.expectCount;
     const actual = channel.responseCount;
-    check(actual, {
-      [`channel ${channel.name} responses match`]: (v) => v === expected,
-    });
+
+    check(
+      actual,
+      {
+        [`channel responses match`]: (v) => v === expected,
+      },
+      channel.name
+    );
+
+    for (let i = 0; i < channel.expectCount - channel.responseCount; i++) {
+      channel.rate.add(false);
+    }
   });
 }
 
@@ -56,7 +66,6 @@ export const options = {
       stages: [
         { duration: SUBSCRIBER_RAMP_UP_TIME, target: SUBSCRIBER_COUNT }, // wait for all websocket listeners to connect
         { duration: SUBSCRIBER_DURATION, target: SUBSCRIBER_COUNT }, // wait for messages
-        { duration: "1s", target: 0 }, // ramp down
       ],
       gracefulRampDown: "3s",
       gracefulStop: "3s",
@@ -118,10 +127,11 @@ export function listener() {
             Date.now() - Number(e.payload.data.subscribe.data)
           );
           channel.responseCount++;
+          channel.rate.add(true);
         }
       });
 
-      socket.on("close", () => console.log("disconnected"));
+      // socket.on("close", () => console.log("disconnected"));
       socket.on("error", onError);
     }
   );
