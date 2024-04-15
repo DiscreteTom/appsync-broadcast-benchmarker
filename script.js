@@ -5,9 +5,9 @@ import ws from "k6/ws";
 import { Rate, Trend } from "k6/metrics";
 
 // environment variables
-const HTTP_API_HOST = __ENV.HTTP_API_HOST; // e.g. xxxxxxxxxx.appsync-api.us-east-1.amazonaws.com
-const REALTIME_API_HOST = __ENV.REALTIME_API_HOST; // e.g. xxxxxxxxxx.appsync-realtime-api.us-east-1.amazonaws.com
-const API_KEY = __ENV.API_KEY; // e.g. da2-xxx
+const HTTP_API_HOST = assertNonEmptyString(__ENV.HTTP_API_HOST); // e.g. xxxxxxxxxx.appsync-api.us-east-1.amazonaws.com
+const REALTIME_API_HOST = assertNonEmptyString(__ENV.REALTIME_API_HOST); // e.g. xxxxxxxxxx.appsync-realtime-api.us-east-1.amazonaws.com
+const API_KEY = assertNonEmptyString(__ENV.API_KEY); // e.g. da2-xxx
 
 // construct endpoints
 const authorization = {
@@ -98,7 +98,7 @@ export function listener() {
     });
 
     socket.on("close", () => console.log("disconnected"));
-    socket.on("error", on_error);
+    socket.on("error", onError);
   });
 
   check(response, { "status is 101": (r) => r && r.status === 101 });
@@ -125,8 +125,14 @@ export function broadcast() {
   //  console.log('broadcast resp: ' + res.body);
 }
 
-function on_error(e) {
+function onError(e) {
   if (e.error() != "websocket: close sent") {
-    console.log("An unexpected error occured: ", e.error());
+    console.log("An unexpected error occurred: ", e.error());
+  }
+}
+
+function assertNonEmptyString(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`Invalid value: ${value}`);
   }
 }
