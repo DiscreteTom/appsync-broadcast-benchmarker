@@ -21,7 +21,7 @@ const HTTP_ENDPOINT = `https://${HTTP_API_HOST}/graphql`;
 
 // metrics
 const appsyncBroadcastSuccessRate = new Rate("appsync_broadcast_success_rate");
-const appsyncBroadcastRttMs = new Trend("appsync_broadcast_rtt_ms");
+const appsyncBroadcastRttMs = new Trend("appsync_broadcast_rtt_ms", true);
 
 export const options = {
   scenarios: {
