@@ -4,22 +4,24 @@ import encoding from "k6/encoding";
 import ws from "k6/ws";
 import { Rate, Trend } from "k6/metrics";
 
+// environment variables
 const HTTP_API_HOST = __ENV.HTTP_API_HOST; // e.g. xxxxxxxxxx.appsync-api.us-east-1.amazonaws.com
 const REALTIME_API_HOST = __ENV.REALTIME_API_HOST; // e.g. xxxxxxxxxx.appsync-realtime-api.us-east-1.amazonaws.com
 const API_KEY = __ENV.API_KEY; // e.g. da2-xxx
 
+// construct endpoints
 const authorization = {
   host: HTTP_API_HOST,
   "x-api-key": API_KEY,
 };
-
 const REALTIME_ENDPOINT = `wss://${REALTIME_API_HOST}:443/graphql?header=${encoding.b64encode(
   JSON.stringify(authorization)
 )}&payload=e30=`;
 const HTTP_ENDPOINT = `https://${HTTP_API_HOST}/graphql`;
 
-export const ResponseSuccessRate = new Rate("ResponseSuccessRate");
-let ws_resp_delay = new Trend("ws_resp_delay_ms");
+// metrics
+const appsyncBroadcastSuccessRate = new Rate("appsync_broadcast_success_rate");
+const appsyncBroadcastRttMs = new Trend("appsync_broadcast_rtt_ms");
 
 export const options = {
   scenarios: {
@@ -45,13 +47,14 @@ export const options = {
     },
   },
   thresholds: {
-    ResponseSuccessRate: [
+    appsync_broadcast_success_rate: [
       "rate>0.90", // should be great than 90%
       { threshold: "rate>0.85", abortOnFail: true }, // stop early if less than 85%
     ],
   },
 };
 
+// appsync websocket listener
 export function listener() {
   const url = REALTIME_ENDPOINT;
   const params = {
@@ -87,8 +90,10 @@ export function listener() {
         );
       }
       if (e.type === "data") {
-        ResponseSuccessRate.add(1);
-        ws_resp_delay.add(Date.now() - Number(e.payload.data.subscribe.data));
+        appsyncBroadcastSuccessRate.add(1);
+        appsyncBroadcastRttMs.add(
+          Date.now() - Number(e.payload.data.subscribe.data)
+        );
       }
     });
 
@@ -99,8 +104,9 @@ export function listener() {
   check(response, { "status is 101": (r) => r && r.status === 101 });
 }
 
+// appsync http sender
 export function broadcast() {
-  let res = http.post(
+  const res = http.post(
     HTTP_ENDPOINT,
     JSON.stringify({
       query:
