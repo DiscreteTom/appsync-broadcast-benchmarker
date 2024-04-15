@@ -135,4 +135,5 @@ function assertNonEmptyString(value) {
   if (typeof value !== "string" || value.length === 0) {
     throw new Error(`Invalid value: ${value}`);
   }
+  return value;
 }
