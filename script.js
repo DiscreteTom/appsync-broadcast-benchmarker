@@ -87,10 +87,8 @@ export function listener() {
         );
       }
       if (e.type === "data") {
-        // TODO: calculate duration
-        console.log(e.payload.data);
         ResponseSuccessRate.add(1);
-        // ws_resp_delay.add(duration);
+        ws_resp_delay.add(Date.now() - Number(e.payload.data.subscribe.data));
       }
     });
 
