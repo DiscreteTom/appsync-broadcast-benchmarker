@@ -16,6 +16,8 @@ const SUBSCRIBER_DURATION = __ENV.SUBSCRIBER_DURATION || "30s";
 const PUBLISHER_COUNT = Number(__ENV.PUBLISHER_COUNT || 100);
 const PUBLISHER_RPS = Number(__ENV.PUBLISHER_RPS || 10);
 const PUBLISHER_DURATION = __ENV.PUBLISHER_DURATION || "25s"; // should be smaller than SUBSCRIBER_DURATION
+const PUBLISH_ONLY = __ENV.PUBLISH_ONLY || false;
+const SUBSCRIBE_ONLY = __ENV.SUBSCRIBE_ONLY || false;
 
 // construct endpoints
 const authorization = {
@@ -38,6 +40,8 @@ const channels = new Array(CHANNEL_COUNT).fill(0).map((_, i) => ({
 const appsyncBroadcastRttMs = new Trend("appsync_broadcast_rtt_ms", true);
 
 export function teardown() {
+  if (PUBLISH_ONLY || SUBSCRIBE_ONLY) return;
+
   // compare the number of expected responses to the actual number of responses
   channels.forEach((channel, i) => {
     const expected = channel.expectCount;
@@ -83,6 +87,8 @@ export const options = {
 
 // appsync websocket listener
 export function listener() {
+  if (PUBLISH_ONLY) return;
+
   // we are going to listen to a random channel
   const channelIndex = Math.floor(Math.random() * channels.length);
   const channel = channels[channelIndex];
@@ -141,6 +147,8 @@ export function listener() {
 
 // appsync http sender
 export function broadcast() {
+  if (SUBSCRIBE_ONLY) return;
+
   // we are going to publish to a random channel
   const channelIndex = Math.floor(Math.random() * channels.length);
   const channel = channels[channelIndex];
